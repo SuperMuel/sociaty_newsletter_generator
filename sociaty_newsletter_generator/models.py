@@ -1,69 +1,163 @@
-from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from enum import Enum
 from math import floor
-from typing import Any, Dict, Iterator, List, Tuple
+from typing import Annotated, Any, Dict, Iterator, List, Tuple
 
 from beanie import Document, Link, PydanticObjectId
-from pydantic import Field
+from pydantic import Field, PastDatetime, UrlConstraints, field_validator
+from pydantic_core import Url
+from pymongo import IndexModel
+
 from sociaty_newsletter_generator.settings import Settings
 
 DateOrDatetime = date | datetime
 
+HttpUrl = Annotated[
+    Url,
+    UrlConstraints(max_length=2083, allowed_schemes=["http", "https"]),
+]
 
-@dataclass(frozen=True)
-class TitleBodyDate:
-    """
-    A data class that represents an article with a title, body, and date.
 
-    Attributes:
-        title (str): The title of the article.
-        body (str): The body of the article.
-        date (DateOrDatetime): The date of the article.
-    """
+def utc_datetime_factory():
+    return datetime.now(UTC)
 
-    title: str
-    body: str
-    date: DateOrDatetime
 
-    @staticmethod
-    def from_dict(data: dict) -> "TitleBodyDate":
-        """
-        Create a TitleBodyDate instance from a dictionary.
+class Region(str, Enum):
+    ARABIA = "xa-ar"
+    ARABIA_EN = "xa-en"
+    ARGENTINA = "ar-es"
+    AUSTRALIA = "au-en"
+    AUSTRIA = "at-de"
+    BELGIUM_FR = "be-fr"
+    BELGIUM_NL = "be-nl"
+    BRAZIL = "br-pt"
+    BULGARIA = "bg-bg"
+    CANADA = "ca-en"
+    CANADA_FR = "ca-fr"
+    CATALAN = "ct-ca"
+    CHILE = "cl-es"
+    CHINA = "cn-zh"
+    COLOMBIA = "co-es"
+    CROATIA = "hr-hr"
+    CZECH_REPUBLIC = "cz-cs"
+    DENMARK = "dk-da"
+    ESTONIA = "ee-et"
+    FINLAND = "fi-fi"
+    FRANCE = "fr-fr"
+    GERMANY = "de-de"
+    GREECE = "gr-el"
+    HONG_KONG = "hk-tzh"
+    HUNGARY = "hu-hu"
+    INDIA = "in-en"
+    INDONESIA = "id-id"
+    INDONESIA_EN = "id-en"
+    IRELAND = "ie-en"
+    ISRAEL = "il-he"
+    ITALY = "it-it"
+    JAPAN = "jp-jp"
+    KOREA = "kr-kr"
+    LATVIA = "lv-lv"
+    LITHUANIA = "lt-lt"
+    LATIN_AMERICA = "xl-es"
+    MALAYSIA = "my-ms"
+    MALAYSIA_EN = "my-en"
+    MEXICO = "mx-es"
+    NETHERLANDS = "nl-nl"
+    NEW_ZEALAND = "nz-en"
+    NORWAY = "no-no"
+    PERU = "pe-es"
+    PHILIPPINES = "ph-en"
+    PHILIPPINES_TL = "ph-tl"
+    POLAND = "pl-pl"
+    PORTUGAL = "pt-pt"
+    ROMANIA = "ro-ro"
+    RUSSIA = "ru-ru"
+    SINGAPORE = "sg-en"
+    SLOVAK_REPUBLIC = "sk-sk"
+    SLOVENIA = "sl-sl"
+    SOUTH_AFRICA = "za-en"
+    SPAIN = "es-es"
+    SWEDEN = "se-sv"
+    SWITZERLAND_DE = "ch-de"
+    SWITZERLAND_FR = "ch-fr"
+    SWITZERLAND_IT = "ch-it"
+    TAIWAN = "tw-tzh"
+    THAILAND = "th-th"
+    TURKEY = "tr-tr"
+    UKRAINE = "ua-uk"
+    UNITED_KINGDOM = "uk-en"
+    UNITED_STATES = "us-en"
+    UNITED_STATES_ES = "ue-es"
+    VENEZUELA = "ve-es"
+    VIETNAM = "vn-vi"
+    NO_REGION = "wt-wt"
 
-        Args:
-            data (dict): A dictionary containing the title, body, and date of the article.
 
-        Returns:
-            TitleBodyDate: A TitleBodyDate instance created from the dictionary.
-        """
-        return TitleBodyDate(data["title"], data["body"], data["date"])
+class Article(Document):
+    title: str = Field(..., min_length=1, max_length=200)
+    url: HttpUrl
+    body: str = Field(default="", max_length=1000)
+    found_at: PastDatetime = Field(default_factory=utc_datetime_factory)
+    date: PastDatetime
+    region: Region | None = None
+    image: HttpUrl | None = None
+    source: str | None = Field(default=None, max_length=100)
+    vector_indexed: bool = False
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def truncate_title(cls, v: str) -> str:
+        return v[:200] if len(v) > 200 else v
+
+    @field_validator("body", mode="before")
+    @classmethod
+    def truncate_body(cls, v: str) -> str:
+        return v[:1000] if len(v) > 1000 else v
+
+    class Settings:
+        name = "ai_news"  # TODO : change the name
+        indexes = [
+            IndexModel("url", unique=True),
+            IndexModel("vector_indexed"),
+            IndexModel("date"),
+        ]
+
+
+DateOrDatetime = date | datetime
 
 
 class SetOfUniqueArticles:
     """
     A class designed to reduce the amount of duplicated or similar articles passed to LLMs.
 
-    Articles are considered the same if:
+    Articles are considered the same if any of the following conditions are met:
+    - They have the same ID
+    - They have the same URL
     - They have the same title (case insensitive, ignoring leading/trailing whitespaces)
-    - They have the same body (case insensitive, ignoring leading/trailing whitespaces)
-    - They have the same date (ignoring the time part if it exists)
+      AND the same date (ignoring the time part if it exists)
 
-    If one article's body is a prefix of another's, the article with the longer body is kept.
+    If articles have the same title and date but different bodies, the article with the longer body is kept.
     """
 
-    def __init__(self, input_data: TitleBodyDate | List[TitleBodyDate] | None = None):
+    def __init__(self, input_data: Article | List[Article] | None = None):
         """
         Initialize the set of unique articles.
 
         Args:
-            articles (List[TitleBodyDate], optional): A list of initial articles to add.
+            input_data (Article | List[Article], optional): An initial article or list of articles to add.
         """
-        self.articles: Dict[Tuple[str, date], TitleBodyDate] = {}
-        if input_data:
-            if isinstance(input_data, TitleBodyDate):
-                input_data = [input_data]
-            for article in input_data:
-                self.add_article(article)
+        self.articles_by_id: Dict[str, Article] = {}
+        self.articles_by_url: Dict[Url, Article] = {}
+        self.articles_by_title_date: Dict[Tuple[str, date], Article] = {}
+
+        if not input_data:
+            return
+
+        if isinstance(input_data, Article):
+            input_data = [input_data]
+
+        for article in input_data:
+            self.add_article(article)
 
     def _normalize_string(self, s: str) -> str:
         """
@@ -77,7 +171,7 @@ class SetOfUniqueArticles:
         """
         return s.strip().lower()
 
-    def _normalize_date(self, d: DateOrDatetime) -> date:
+    def _normalize_date(self, d: datetime) -> date:
         """
         Normalize a date or datetime by extracting the date part.
 
@@ -91,12 +185,12 @@ class SetOfUniqueArticles:
             return d.date()
         return d
 
-    def _generate_key(self, article: TitleBodyDate) -> Tuple[str, date]:
+    def _generate_title_date_key(self, article: Article) -> Tuple[str, date]:
         """
         Generate a key for an article based on its normalized title and date.
 
         Args:
-            article (TitleBodyDate): The article to generate the key for.
+            article (Article): The article to generate the key for.
 
         Returns:
             Tuple[str, date]: The generated key.
@@ -105,21 +199,29 @@ class SetOfUniqueArticles:
         normalized_date = self._normalize_date(article.date)
         return (normalized_title, normalized_date)
 
-    def add_article(self, article: TitleBodyDate):
+    def add_article(self, article: Article):
         """
         Add an article to the set of unique articles.
 
         Args:
-            article (TitleBodyDate): The article to add.
+            article (Article): The article to add.
         """
-        key = self._generate_key(article)
-        normalized_body = self._normalize_string(article.body)
-
-        if key not in self.articles:
-            self.articles[key] = article
+        # Check for ID uniqueness
+        if article.id and str(article.id) in self.articles_by_id:
             return
 
-        existing_article = self.articles[key]
+        # Check for URL uniqueness
+        if article.url in self.articles_by_url:
+            return
+
+        title_date_key = self._generate_title_date_key(article)
+        normalized_body = self._normalize_string(article.body)
+
+        if title_date_key not in self.articles_by_title_date:
+            self._add_article_to_all_dicts(article, title_date_key)
+            return
+
+        existing_article = self.articles_by_title_date[title_date_key]
         existing_body = self._normalize_string(existing_article.body)
 
         if (
@@ -132,23 +234,52 @@ class SetOfUniqueArticles:
                 ]
             )
         ):
-            self.articles[key] = article
+            self._remove_article_from_all_dicts(existing_article)
+            self._add_article_to_all_dicts(article, title_date_key)
 
-    def get_articles(self) -> List[TitleBodyDate]:
+    def _add_article_to_all_dicts(
+        self, article: Article, title_date_key: Tuple[str, date]
+    ):
+        """
+        Add an article to all internal dictionaries.
+
+        Args:
+            article (Article): The article to add.
+            title_date_key (Tuple[str, date]): The key for the title-date dictionary.
+        """
+        if article.id:
+            self.articles_by_id[str(article.id)] = article
+        self.articles_by_url[article.url] = article
+        self.articles_by_title_date[title_date_key] = article
+
+    def _remove_article_from_all_dicts(self, article: Article):
+        """
+        Remove an article from all internal dictionaries.
+
+        Args:
+            article (Article): The article to remove.
+        """
+        if article.id:
+            self.articles_by_id.pop(str(article.id), None)
+        self.articles_by_url.pop(article.url, None)
+        title_date_key = self._generate_title_date_key(article)
+        self.articles_by_title_date.pop(title_date_key, None)
+
+    def get_articles(self) -> List[Article]:
         """
         Get the list of unique articles.
 
         Returns:
-            List[TitleBodyDate]: The list of unique articles.
+            List[Article]: The list of unique articles.
         """
-        return list(self.articles.values())
+        return list(self.articles_by_title_date.values())
 
-    def __iter__(self) -> Iterator[TitleBodyDate]:
+    def __iter__(self) -> Iterator[Article]:
         """
         Return an iterator over the unique articles.
 
         Returns:
-            Iterator[TitleBodyDate]: An iterator over the unique articles.
+            Iterator[Article]: An iterator over the unique articles.
         """
         return iter(self.get_articles())
 
@@ -159,7 +290,6 @@ class SetOfUniqueArticles:
         Returns:
             str: A string representation of the set of unique articles.
         """
-
         articles = [article.__repr__() for article in self.get_articles()]
         class_name = self.__class__.__name__
         return f"{class_name}([{',\n    '.join(articles)}])"
@@ -171,11 +301,11 @@ class SetOfUniqueArticles:
         Returns:
             bool: True if the set of unique articles is not empty, False otherwise.
         """
-        return bool(self.articles)
+        return bool(self.articles_by_title_date)
 
     def limit(self, n: int) -> "SetOfUniqueArticles":
         """
-        Limit the number of articles to be returned.
+        Limit the number of articles to be returned. Note: subsequent calls to `add_article` will not be limited.
 
         Args:
             n (int): The number of articles to return.
@@ -192,7 +322,7 @@ class SetOfUniqueArticles:
         Returns:
             int: The number of unique articles.
         """
-        return len(self.articles)
+        return len(self.articles_by_title_date)
 
 
 class ClusteringSession(Document):
@@ -245,3 +375,6 @@ class Cluster(Document):
 
     class Settings:
         name = Settings().mongodb_clusters_collection  # type:ignore
+
+    async def get_articles(self) -> List[Article]:
+        return await Article.find_many({"_id": {"$in": self.articles_ids}}).to_list()
