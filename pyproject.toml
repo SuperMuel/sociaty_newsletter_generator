@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "sociaty-newsletter-generator"
+version = "0.1.0"
+description = ""
+authors = ["Samuel Mallet  <69467005+SuperMuel@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+langchain = "^0.2.11"
+langchain-community = "^0.2.10"
+langchain-core = "^0.2.24"
+langchain-openai = "^0.1.19"
+langchain-anthropic = "^0.1.21"
+pydantic = "^2.8.2"
+pydantic-settings = "^2.3.4"
+beanie = "^1.26.0"
+motor = "^3.5.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
