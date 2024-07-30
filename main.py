@@ -1,4 +1,5 @@
 import asyncio
+from crewai.crews.crew_output import CrewOutput
 import logging
 
 from sociaty_newsletter_generator.db import init_db
@@ -48,6 +49,7 @@ writer = Agent(
         "3. Compile the sections into a full newsletter."
         "4. Format the newsletter appropriately, including titles, summaries, and links."
     ),
+    llm=llm,
 )
 
 writing_task = Task(
@@ -57,6 +59,7 @@ writing_task = Task(
     ),
     expected_output="A full newsletter compiled from the clusters, formatted with titles, summaries, and links.",
     agent=writer,
+    llm=llm,
 )
 
 # Define crew
@@ -79,6 +82,10 @@ def format_cluster(cluster: Cluster, articles: SetOfUniqueArticles) -> str:
     return f"{cluster.title}\n{cluster.summary}\n\n{articles_str}"
 
 
+def generate_newsletter(formatted_clusters: str) -> CrewOutput:
+    return crew.kickoff(inputs={"clusters": formatted_clusters})
+
+
 async def main():
     await init_db()
     logger.info("Connected to MongoDB")
@@ -93,14 +100,7 @@ async def main():
     clusters = sorted(clusters, key=lambda x: x.articles_count, reverse=True)
 
     # limit to 5 clusters
-
     clusters = clusters[:5]
-
-    print(
-        format_cluster(
-            clusters[0], SetOfUniqueArticles(await clusters[0].get_articles()).limit(20)
-        )
-    )
 
     clusters_str = ""
     for i, cluster in enumerate(clusters, start=1):
@@ -109,8 +109,7 @@ async def main():
         clusters_str += format_cluster(cluster, articles)
         clusters_str += f"</subject_{i}>\n"
 
-    result = crew.kickoff(inputs={"clusters": clusters_str})
-    print(result)
+    print(generate_newsletter(clusters_str))
 
 
 if __name__ == "__main__":

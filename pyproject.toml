@@ -17,6 +17,7 @@ pydantic-settings = "^2.3.4"
 beanie = "^1.26.0"
 motor = "^3.5.1"
 crewai = {extras = ["tools"], version = "^0.41.1"}
+langchain-groq = "^0.1.6"
 
 
 [tool.poetry.group.dev.dependencies]
