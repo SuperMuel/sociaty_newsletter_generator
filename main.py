@@ -1,4 +1,5 @@
 import asyncio
+from typing import Literal
 from crewai.crews.crew_output import CrewOutput
 import logging
 
@@ -41,8 +42,8 @@ llm = init_chat_model("gpt-4o-mini", temperature=0)
 
 writer = Agent(
     role="Writer",
-    goal="Write a comprehensive and engaging newsletter from the provided clusters.",
-    backstory="You are a talented writer with a knack for crafting detailed summaries and sections of the newsletter.",
+    goal="Write a comprehensive and engaging newsletter from the provided clusters of news articles.",
+    backstory="You are a talented writer with a knack for crafting detailed summaries and sections of the newsletter. You are a native speaker of the '{language}' language",
     instructions=(
         "1. Write detailed summaries and sections for each cluster."
         "2. Ensure the content is engaging, informative, and cohesive."
@@ -55,9 +56,10 @@ writer = Agent(
 writing_task = Task(
     description=(
         "Write detailed summaries and sections for the newsletter based on the research and summaries provided. Ensure that the content is engaging and informative."
+        "Language for the newsletter : '{language}'"
         "Here are the researched subjects : \n\n{clusters}"
     ),
-    expected_output="A full newsletter compiled from the clusters, formatted with titles, summaries, and links.",
+    expected_output="A full newsletter compiled from the clusters, formatted with titles, summaries, and links. Language : '{language}'",
     agent=writer,
     llm=llm,
 )
@@ -82,8 +84,17 @@ def format_cluster(cluster: Cluster, articles: SetOfUniqueArticles) -> str:
     return f"{cluster.title}\n{cluster.summary}\n\n{articles_str}"
 
 
-def generate_newsletter(formatted_clusters: str) -> CrewOutput:
-    return crew.kickoff(inputs={"clusters": formatted_clusters})
+def generate_newsletter(
+    formatted_clusters: str,
+    language: Literal["en", "fr"] = "en",
+    # TODO : add llm here
+) -> CrewOutput:
+    return crew.kickoff(
+        inputs={
+            "clusters": formatted_clusters,
+            "language": language,
+        }
+    )
 
 
 async def main():
