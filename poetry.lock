@@ -2698,6 +2698,20 @@ files = [
 pydantic = ">=1.9.0"
 
 [[package]]
+name = "make-it-sync"
+version = "2.0.0"
+description = "Create a sync version of an async function"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "make_it_sync-2.0.0-py3-none-any.whl", hash = "sha256:52a7956cafd6613a2e5db6606e82e4f351a9253f44a31bc152cb36bcb80779c0"},
+    {file = "make_it_sync-2.0.0.tar.gz", hash = "sha256:2b19630e6e6ad7d87aa32a6120113cb61b88872afc88838b98d1d0dc3eebf8b5"},
+]
+
+[package.extras]
+test = ["autopep8", "build", "codecov", "coverage", "flake8", "pytest (>=3.9)", "pytest-asyncio", "pytest-cov", "pytest-mock", "twine", "wheel"]
+
+[[package]]
 name = "mako"
 version = "1.3.5"
 description = "A super-fast templating language that borrows the best ideas from the existing templating languages."
@@ -6034,4 +6048,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12,<=3.13"
-content-hash = "a4f3e45c273e77890d7ece13cf41617b781a6289749d0d99225056f467c146ec"
+content-hash = "32ae3c676ff52ba0c503ac75d03c89b0d1d123d6f902ae17a35c925abcfe6b55"

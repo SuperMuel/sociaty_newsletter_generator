@@ -18,6 +18,7 @@ beanie = "^1.26.0"
 motor = "^3.5.1"
 crewai = {extras = ["tools"], version = "^0.41.1"}
 langchain-groq = "^0.1.6"
+make-it-sync = "^2.0.0"
 
 
 [tool.poetry.group.dev.dependencies]

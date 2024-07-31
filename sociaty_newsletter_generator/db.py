@@ -8,4 +8,6 @@ async def init_db():
     settings = Settings()  # type:ignore
     client = motor.motor_asyncio.AsyncIOMotorClient(settings.mongodb_uri)
     database = client[settings.mongodb_database]
-    await init_beanie(database, document_models=[Cluster, ClusteringSession, Article])
+    return await init_beanie(
+        database, document_models=[Cluster, ClusteringSession, Article]
+    )
