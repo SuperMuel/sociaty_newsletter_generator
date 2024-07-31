@@ -1,10 +1,11 @@
 from datetime import UTC, date, datetime
 from enum import Enum
 from math import floor
-from typing import Annotated, Any, Dict, Iterator, List, Tuple
+from typing import Annotated, Any, Dict, Iterator, List, Self, Tuple
+from typing_extensions import Literal
 
 from beanie import Document, Link, PydanticObjectId
-from pydantic import Field, PastDatetime, UrlConstraints, field_validator
+from pydantic import BaseModel, Field, PastDatetime, UrlConstraints, field_validator
 from pydantic_core import Url
 from pymongo import IndexModel
 
@@ -324,6 +325,33 @@ class SetOfUniqueArticles:
         """
         return len(self.articles_by_title_date)
 
+    def __getitem__(self, key: int | slice) -> Article | list[Article]:
+        """
+        Enable indexing and slicing of the SetOfUniqueArticles.
+
+        Args:
+            key (Union[int, slice]): The index or slice to retrieve.
+
+        Returns:
+            Union[Article, SetOfUniqueArticles]: An Article for integer index, or a new SetOfUniqueArticles for slices.
+
+        Raises:
+            IndexError: If the index is out of range.
+        """
+        articles = self.get_articles()
+
+        if isinstance(key, int):
+            try:
+                return articles[key]
+            except IndexError:
+                raise IndexError("SetOfUniqueArticles index out of range")
+
+        elif isinstance(key, slice):
+            return articles[key]
+
+        else:
+            raise TypeError("Invalid argument type")
+
 
 class ClusteringSession(Document):
     session_start: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -350,6 +378,21 @@ class ClusteringSession(Document):
     class Settings:
         name = Settings().mongodb_clusterings_sessions_collection  # type:ignore
 
+    async def get_included_sorted_clusters(self) -> list["Cluster"]:
+        clusters = await Cluster.find_many(
+            {"session.$id": self.id, "evaluation.decision": "include"}
+        ).to_list()
+
+        return sorted(
+            clusters, key=lambda cluster: cluster.articles_count, reverse=True
+        )
+
+
+class ClusterEvaluation(BaseModel):
+    justification: str
+    decision: Literal["include", "exclude"]
+    exclusion_reason: str | None = None
+
 
 class Cluster(Document):
     session: Link[ClusteringSession]
@@ -372,6 +415,8 @@ class Cluster(Document):
     overview_generation_error: str | None = Field(
         default=None, description="Error message if the overview generation failed"
     )
+
+    evaluation: ClusterEvaluation | None = None
 
     class Settings:
         name = Settings().mongodb_clusters_collection  # type:ignore
