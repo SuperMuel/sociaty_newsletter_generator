@@ -333,7 +333,7 @@ class SetOfUniqueArticles:
             key (Union[int, slice]): The index or slice to retrieve.
 
         Returns:
-            Union[Article, SetOfUniqueArticles]: An Article for integer index, or a new SetOfUniqueArticles for slices.
+            Union[Article, List[Article]]: An Article for integer index, or a new SetOfUniqueArticles for slices.
 
         Raises:
             IndexError: If the index is out of range.
