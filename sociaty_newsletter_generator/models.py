@@ -1,7 +1,7 @@
 from datetime import UTC, date, datetime
 from enum import Enum
 from math import floor
-from typing import Annotated, Any, Dict, Iterator, List, Self, Tuple
+from typing import Annotated, Any, Dict, Iterator, List, Tuple
 from typing_extensions import Literal
 
 from beanie import Document, Link, PydanticObjectId
@@ -304,16 +304,20 @@ class SetOfUniqueArticles:
         """
         return bool(self.articles_by_title_date)
 
-    def limit(self, n: int) -> "SetOfUniqueArticles":
+    def limit(self, n: int | None) -> "SetOfUniqueArticles":
         """
         Limit the number of articles to be returned. Note: subsequent calls to `add_article` will not be limited.
 
         Args:
-            n (int): The number of articles to return.
+            n (int | None): The maximum number of articles to return. If None, the limit has no effect.
 
         Returns:
             SetOfUniqueArticles: A new SetOfUniqueArticles instance with the limited number of articles.
         """
+        if n is None:
+            # create a copy for safety
+            return SetOfUniqueArticles(list(self.get_articles()))
+
         return SetOfUniqueArticles(list(self.get_articles())[:n])
 
     def __len__(self) -> int:
