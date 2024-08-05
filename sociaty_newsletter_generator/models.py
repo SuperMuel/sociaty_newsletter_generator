@@ -5,18 +5,18 @@ from typing import Annotated, Any, Dict, Iterator, List, Tuple
 from typing_extensions import Literal
 
 from beanie import Document, Link, PydanticObjectId
-from pydantic import BaseModel, Field, PastDatetime, UrlConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    PastDatetime,
+    UrlConstraints,
+    field_validator,
+    HttpUrl,
+)
 from pydantic_core import Url
 from pymongo import IndexModel
 
 from sociaty_newsletter_generator.settings import Settings
-
-DateOrDatetime = date | datetime
-
-HttpUrl = Annotated[
-    Url,
-    UrlConstraints(max_length=2083, allowed_schemes=["http", "https"]),
-]
 
 
 def utc_datetime_factory():

@@ -4,7 +4,7 @@ from datetime import date, datetime
 from langchain import hub
 from langchain.chat_models import init_chat_model
 from langchain.chat_models.base import BaseChatModel
-from langchain_core.output_parsers import StrOutputParser
+from langchain.output_parsers.regex import RegexParser
 from langchain_core.runnables import (
     Runnable,
     RunnableLambda,
@@ -64,9 +64,10 @@ def create_cluster_to_topic_chain(
             ),  # TODO : move this before the SetOfUniqueArticle, because we might loose information during the deduplication process
         )
         | RunnableLambda(_TopicMaterial.model_validate)
-    )
+    ).with_config(run_name="cluster_to_topic_chain")
 
 
+# TODO : Move this to db
 sociaty_newsletter_template = """# SocIAty Intelligence - <date>
 
 *Votre source d'insights sur l'intelligence artificielle*
@@ -132,6 +133,13 @@ Contactez-nous https://sociaty.io/#projet
 """
 
 
+def create_newsletter_output_parser() -> RegexParser:
+    return RegexParser(
+        output_keys=["newsletter"],
+        regex=r"(?s)<(?:newsletter|newsletter_template)>(.*?)</(?:newsletter|newsletter_template)>",
+    )
+
+
 @traceable
 async def generate_newsletter(
     session: ClusteringSession, llm: BaseChatModel, language: Language = "fr"
@@ -148,7 +156,7 @@ async def generate_newsletter(
 
     prompt = hub.pull("generate_newsletter")
 
-    chain = prompt | llm | StrOutputParser()
+    chain = prompt | llm | create_newsletter_output_parser()
 
     newsletter = chain.invoke(
         {

@@ -5,7 +5,8 @@ from langchain.chat_models import init_chat_model
 from langchain.chat_models.base import BaseChatModel
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import Runnable, RunnableLambda
-from pydantic import BaseModel, Field
+from langchain_core.pydantic_v1 import BaseModel, Field
+
 
 from sociaty_newsletter_generator.models import SetOfUniqueArticles
 
@@ -25,7 +26,7 @@ class SummaryOutput(BaseModel):
     )
     final_summary: str = Field(
         ...,
-        description="Final comprehensive summary of the content including the scratchpad and forgot facts.",
+        description="Final comprehensive summary of the content including the scratchpad and forgotten entities.",
     )
 
 
@@ -49,13 +50,13 @@ def create_articles_summarizer_chain(
 
     prompt = PromptTemplate.from_template(
         dedent("""Here is a set of news articles to summarize : 
-            <articles>
-            {formatted_articles}
-            </articles>
 
-            Write a comprehensive summary of this content in {language} language.
-            Include as much facts and ideas as possible in the summary.
-        """)
+                                <articles>
+                                {formatted_articles}
+                                </articles>
+
+                                Write a comprehensive summary of this content in {language} language.
+                                Include as much facts and ideas as possible in the summary.""")
     )
 
     return (
@@ -66,4 +67,4 @@ def create_articles_summarizer_chain(
         | prompt
         | structured_llm
         | RunnableLambda(lambda x: x.final_summary)
-    )
+    ).with_config(run_name="articles_summarizer_chain")
